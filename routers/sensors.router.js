@@ -34,30 +34,12 @@ sensorRouter.get('/user/:idUser', async (req, res) => {
                 await pool.query('UPDATE my_schema.sensor_data SET isRead = true WHERE idSensor = $1', [sensor.idsensor]);
             }
             const age = user.rows[0].age;
+            let cloneData=[...result.rows].map((item)=>{
+                 delete item.isread;
+                 return {...item,age}});
             
             // Trả về sensor và dữ liệu sensor_data
-            return { ...sensor, sensor_data:  result.rows.map((item)=>{ 
-                 let {temp,sp02,heartrate}=item;
-                 // ket qua nhiet do
-                 item={...item,ketQua:"Nhiệt độ " + (temp >=36 && temp <=38 ?"Bình thường, ":temp<36 ? "Cảm lạnh,":"Sốt ")}
-                 //ket qua sp02
-                 item={...item,ketQua:item.ketQua + "Chỉ số SpO2 " + (sp02 <=17 && sp02 <=100 ?"Bình thường, ":sp02<=96 && sp02 >=94 ? "Trung bình,":"Nguy hiểm, ")}
-                 //ket qua nhip tim
-                 if(1 < age <= 3 && 76 < heartrate && heartrate < 142 ||
-                    3 < age <= 4 && 70 < heartrate && heartrate < 136 ||
-                    4 < age <= 6 && 65 < heartrate && heartrate < 131 ||
-                    6 < age <= 8 && 59 < heartrate && heartrate < 123 ||
-                    8 < age <= 12 && 55 < heartrate && heartrate < 115 ||
-                    12 < age <= 15 && 47 < heartrate && heartrate < 108 ||
-                    15 < age <= 18 && 43 < heartrate && heartrate < 104
-                 ){
-                     return {...item,ketQua:item.ketQua+ "Nhịp tim bình thường"}
-                 }
-
-
-
-
-                return {...item,ketQua:item.ketQua+ "Nhịp tim không bình thường"}}) };
+            return { ...sensor, sensor_data:modelResult(cloneData)  };
         }));
 
         // Trả về kết quả sau khi lấy và cập nhật dữ liệu
@@ -148,5 +130,59 @@ sensorRouter.put('/:idSensor', async (req, res) => {
         res.status(500).json({ statusCode: "500", error: 'Error retrieving data' });
     }
 });
+sensorRouter.get('/alert/:idsensor', async (req, res) => {
+    const { idsensor } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM my_schema.sensor_data WHERE idsensor = $1 ORDER BY timestamp DESC LIMIT 1', [idsensor]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                statusCode: 404,
+                error: 'Sensor data not found'
+            });
+        }
+         let cloneData=modelResult(result.rows)[0];
+          let {ketQuaNhietDo,ketQuaSp02,ketQuaNhipTim}=cloneData;
+        let alert={};
+          if(!(ketQuaNhietDo === "Nhiệt độ Bình thường")){
+                    alert={...alert,ketQuaNhietDo}
+             
+          
+          }
+          if(!( ketQuaSp02 === "Chỉ số SpO2 Bình thường") ){
+            alert ={...alert,ketQuaSp02}
+      }
+          if( !(ketQuaNhipTim === "Nhịp tim Bình thường")){
+            alert ={...alert,ketQuaNhipTim}
+          }
+          res.status(200).json({ statusCode: "200", alert});
 
+       
+    } catch (err) {
+        res.status(500).json({ statusCode: "500", error: 'Error retrieving data' });
+    }
+})
+function modelResult(data){
+        return  data.map((item)=>{ 
+            let {temp,sp02,heartrate,age}=item;
+            // ket qua nhiet do
+            item={...item,ketQuaNhietDo:"Nhiệt độ " + (temp >=36 && temp <=38 ?"Bình thường":temp<36 ? "Cảm lạnh":"Sốt")}
+            //ket qua sp02
+            item={...item,ketQuaSp02: "Chỉ số SpO2 " + (sp02 <=17 && sp02 <=100 ?"Bình thường":sp02<=96 && sp02 >=94 ? "Trung bình":"Nguy hiểm")}
+            //ket qua nhip tim
+            if(1 < age <= 3 && 76 < heartrate && heartrate < 142 ||
+               3 < age <= 4 && 70 < heartrate && heartrate < 136 ||
+               4 < age <= 6 && 65 < heartrate && heartrate < 131 ||
+               6 < age <= 8 && 59 < heartrate && heartrate < 123 ||
+               8 < age <= 12 && 55 < heartrate && heartrate < 115 ||
+               12 < age <= 15 && 47 < heartrate && heartrate < 108 ||
+               15 < age <= 18 && 43 < heartrate && heartrate < 104
+            ){
+                return {...item,ketQuaNhipTim: "Nhịp tim Bình thường"}
+            }
+
+
+
+
+           return {...item,ketQuaNhipTim: "Nhịp tim không bình thường"}})
+}
 module.exports = sensorRouter;
