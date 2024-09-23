@@ -26,39 +26,38 @@ app.post('/api/login', async (req, res) => {
         );
 
         if (userQuery.rows.length === 0) {
-            return res.status(404).json({ 
-                statusCode: "404",
+            return res.status(401).json({ 
+                statusCode: "401",
                 error: 'Login failed!' 
             });
         }
 
         const user = userQuery.rows[0];
+        delete user.password;
 
-        const sensorsQuery = await pool.query(
-            'SELECT * FROM my_schema.sensor WHERE idUser = $1',
-            [idUser]
-        );
+        // const sensorsQuery = await pool.query(
+        //     'SELECT * FROM my_schema.sensor WHERE idUser = $1',
+        //     [idUser]
+        // );
 
-        const sensors = [];
+        // const sensors = [];
 
-        for (const sensor of sensorsQuery.rows) {
-            const result = await pool.query(
-                'SELECT * FROM my_schema.sensor_data WHERE idSensor = $1',
-                [sensor.idsensor]
-            );
-            sensors.push({
-                ...sensor,
-                sensor_data: result.rows
-            });
-        }
+        // for (const sensor of sensorsQuery.rows) {
+        //     const result = await pool.query(
+        //         'SELECT * FROM my_schema.sensor_data WHERE idSensor = $1',
+        //         [sensor.idsensor]
+        //     );
+        //     sensors.push({
+        //         ...sensor,
+        //         sensor_data: result.rows
+        //     });
+        // }
 
-        user.sensors = sensors;
+        // user.sensors = sensors;
 
         return res.status(200).json({
             statusCode: "200",
-            data: {
-                user: user
-            }
+            data: user
         });
 
     } catch (error) {
