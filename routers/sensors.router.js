@@ -165,7 +165,7 @@ sensorRouter.get('/alert/sensor/:idsensor', async (req, res) => {
 sensorRouter.get('/alert/user/:idUser', async (req, res) => {
     const { idUser } = req.params;
     try {
-        const result = await pool.query('SELECT * FROM my_schema.sensor_data WHERE idsensor = $1 ORDER BY timestamp DESC LIMIT 1', [idUser]);
+        const result = await pool.query('SELECT * FROM my_schema.sensor_data WHERE iduser = $1 ORDER BY timestamp DESC LIMIT 1', [idUser]);
         if (result.rows.length === 0) {
             return res.status(404).json({
                 statusCode: 404,
