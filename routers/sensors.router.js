@@ -166,31 +166,64 @@ sensorRouter.get('/alert/user/:idUser', async (req, res) => {
     const { idUser } = req.params;
     try {
         const result = await pool.query('SELECT * FROM my_schema.sensor_data WHERE iduser = $1 ORDER BY timestamp DESC LIMIT 1', [idUser]);
+        const user = await pool.query('SELECT * FROM my_schema.user WHERE iduser = $1', [idUser]);
         if (result.rows.length === 0) {
             return res.status(404).json({
                 statusCode: 404,
                 error: 'Sensor data not found'
             });
         }
-         let cloneData=modelResult(result.rows)[0];
+         let cloneData=modelResult(result.rows.map((item)=>{
+            return {...item,age:user.rows[0].age}
+         }))[0];
           let {ketQuaNhietDo,ketQuaSp02,ketQuaNhipTim}=cloneData;
         let alert={};
           if(!(ketQuaNhietDo === "Nhiệt độ Bình thường")){
-                    alert={...alert,ketQuaNhietDo}
+                    alert={...alert,description:ketQuaNhietDo,title:"Nguy hiểm"}
           }
-          if(!( ketQuaSp02 === "Chỉ số SpO2 Bình thường") ){
-            alert ={...alert,ketQuaSp02}
-      }
+        if(!( ketQuaSp02 === "Chỉ số SpO2 Bình thường") ){
+                alert ={...alert,description:(alert.description??"")+", "+ketQuaSp02,title:"Nguy hiểm"}
+        }
           if( !(ketQuaNhipTim === "Nhịp tim Bình thường")){
-            alert ={...alert,ketQuaNhipTim}
+            alert ={...alert,description:(alert.description??"")+", "+ketQuaNhipTim,title:"Nguy hiểm"}
           }
-          res.status(200).json({ statusCode: "200", alert});
+          res.status(200).json({ statusCode: "200", alert, datetime: new Date()});
 
        
     } catch (err) {
-        res.status(500).json({ statusCode: "500", error: 'Error retrieving data' });
+        res.status(500).json({ statusCode: "500", error: 'Error retrieving data'});
     }
 })
+
+sensorRouter.put('/data/:idDataSensor', async (req, res) => {
+    const { idDataSensor } = req.params;
+    const { isRead } = req.body;
+    if (isRead === undefined) {
+        return res.status(400).json({ error: 'Missing required fields: idRead' });
+    }
+
+    try {
+        const result = await pool.query('UPDATE my_schema.sensor_data SET isread = $1 WHERE id = $2 RETURNING *', [ isRead, idDataSensor]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ statusCode: 404, error: 'Sensor not found' });
+        }
+
+        res.status(200).json({ statusCode: "200", data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ statusCode: "500", error: 'Error retrieving data' });
+    }
+});
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -198,18 +231,19 @@ sensorRouter.get('/alert/user/:idUser', async (req, res) => {
 function modelResult(data){
         return  data.map((item)=>{ 
             let {temp,sp02,heartrate,age}=item;
+            
             // ket qua nhiet do
             item={...item,ketQuaNhietDo:"Nhiệt độ " + (temp >=36 && temp <=38 ?"Bình thường":temp<36 ? "Cảm lạnh":"Sốt")}
             //ket qua sp02
-            item={...item,ketQuaSp02: "Chỉ số SpO2 " + (sp02 <=17 && sp02 <=100 ?"Bình thường":sp02<=96 && sp02 >=94 ? "Trung bình":"Nguy hiểm")}
+            item={...item,ketQuaSp02: "Chỉ số SpO2 " + (sp02 >=96 && sp02 <=100 ?"Bình thường":(sp02 < 96 && sp02 >=90) ? "Cần theo dõi":"Nguy hiểm")}
             //ket qua nhip tim
-            if(1 < age <= 3 && 76 < heartrate && heartrate < 142 ||
-               3 < age <= 4 && 70 < heartrate && heartrate < 136 ||
-               4 < age <= 6 && 65 < heartrate && heartrate < 131 ||
-               6 < age <= 8 && 59 < heartrate && heartrate < 123 ||
-               8 < age <= 12 && 55 < heartrate && heartrate < 115 ||
-               12 < age <= 15 && 47 < heartrate && heartrate < 108 ||
-               15 < age <= 18 && 43 < heartrate && heartrate < 104
+            if(((1 < age && age <= 3) && (76 < heartrate && heartrate < 142)) ||
+               ((3 < age && age <= 4) && (70 < heartrate && heartrate < 136))||
+               ((4 < age && age <= 6) && (65 < heartrate && heartrate < 131)) ||
+               ((6 < age && age <= 8) && (59 < heartrate && heartrate < 123))||
+               ((8 < age && age <= 12) && (55 < heartrate && heartrate < 115))||
+               ((12 < age && age <= 15) && (47 < heartrate && heartrate < 108)) ||
+               ((15 < age && age <= 18) && (43 < heartrate && heartrate < 104))
             ){
                 return {...item,ketQuaNhipTim: "Nhịp tim Bình thường"}
             }
